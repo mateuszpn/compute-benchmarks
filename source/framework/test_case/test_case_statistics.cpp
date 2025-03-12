@@ -65,6 +65,10 @@ void TestCaseStatistics::pushValue(Clock::duration time, MeasurementUnit unit, M
 
 void TestCaseStatistics::pushValue(Clock::duration time, uint64_t size, MeasurementUnit unit, MeasurementType type, const std::string &description) {
     static_assert(std::is_floating_point_v<Value>, "Need floating point type for the below cast to work properly");
+    if (unit != MeasurementUnit::GigabytesPerSecond) {
+        FATAL_ERROR("Test is passing size which requires Bandwidth calculcation, please fix benchmark");
+    }
+
     const Value timeSeconds = std::chrono::duration_cast<std::chrono::duration<Value>>(time).count();
 
     overrideMeasurementUnit(unit);
@@ -79,6 +83,18 @@ void TestCaseStatistics::pushValue(Clock::duration time, uint64_t size, Measurem
         const Value timeNanoseconds = timeSeconds * 1e9;
         const Value bandwidth = size / timeNanoseconds; // Bytes/Nanoseconds = Gigabytes/Seconds
         this->pushValue(bandwidth, description, unit, type);
+        break;
+    }
+    default:
+        FATAL_ERROR("Unknown measurement unit");
+    }
+}
+
+void TestCaseStatistics::pushCpuCounter(uint64_t count, MeasurementUnit unit, MeasurementType type, const std::string &description) {
+    switch (unit) {
+    case MeasurementUnit::CpuHardwareCounter: {
+        const Value cpuCounter = static_cast<Value>(count);
+        this->pushValue(cpuCounter, description, unit, type);
         break;
     }
     default:
@@ -285,22 +301,23 @@ void TestCaseStatistics::printStatisticsNoop(const std::string &testCaseName) co
 }
 
 void TestCaseStatistics::printStatisticsCsv(const std::string &testCaseName) const {
-    const auto samplesEntry = this->samplesMap.begin();
-    FATAL_ERROR_IF(samplesEntry == this->samplesMap.end(), "Test did not generate any values");
+    FATAL_ERROR_IF(this->samplesMap.begin() == this->samplesMap.end(), "Test did not generate any values");
 
-    const std::string &samplesName = samplesEntry->first;
-    const Samples &samples = samplesEntry->second;
-    const MetricsStrings metricsStrings{samplesName, samples, this->reachedInfinity};
+    for (const auto &samplesEntry : this->samplesMap) {
+        const std::string &samplesName = samplesEntry.first;
+        const Samples &samples = samplesEntry.second;
+        const MetricsStrings metricsStrings{samplesName, samples, this->reachedInfinity};
 
-    std::cout << testCaseName << ",";
-    std::cout << metricsStrings.mean << ",";
-    std::cout << metricsStrings.median << ",";
-    std::cout << metricsStrings.standardDeviation << ",";
-    std::cout << metricsStrings.min << ",";
-    std::cout << metricsStrings.max << ",";
-    std::cout << metricsStrings.type << ",";
-    std::cout << metricsStrings.label;
-    std::cout << std::endl;
+        std::cout << testCaseName << ",";
+        std::cout << metricsStrings.mean << ",";
+        std::cout << metricsStrings.median << ",";
+        std::cout << metricsStrings.standardDeviation << ",";
+        std::cout << metricsStrings.min << ",";
+        std::cout << metricsStrings.max << ",";
+        std::cout << metricsStrings.type << ",";
+        std::cout << metricsStrings.label;
+        std::cout << std::endl;
+    }
 }
 
 void TestCaseStatistics::printStatisticsVerbose() const {

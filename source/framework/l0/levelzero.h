@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022-2023 Intel Corporation
+ * Copyright (C) 2022-2025 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  *
@@ -41,6 +41,7 @@ struct LevelZero {
     ze_device_handle_t commandQueueDevice{};
     size_t commandQueueMaxFillSize{};
     ImportHostPointerExtension importHostPointer{};
+    L0CounterBasedEventCreate2 counterBasedEventCreate2 = nullptr;
 
     // Constructors, destructor
     LevelZero() : LevelZero(QueueProperties::create()) {}
@@ -50,6 +51,8 @@ struct LevelZero {
         : LevelZero(queueProperties, contextProperties, ExtensionProperties::create()) {}
     LevelZero(const QueueProperties &queueProperties, const ContextProperties &contextProperties,
               const ExtensionProperties &extensionProperties);
+    LevelZero(const ExtensionProperties &extensionProperties) : LevelZero(QueueProperties::create(),
+                                                                          ContextProperties::create(), extensionProperties) {}
     ~LevelZero() noexcept(false);
 
     // Returns how many subDevices has been created. Will return 0, if no subDevices were specified in ContextProperties or
@@ -88,6 +91,13 @@ struct LevelZero {
         EXPECT_ZE_RESULT_SUCCESS(zeDeviceGetComputeProperties(deviceHandle, &deviceComputeProperties));
         return deviceComputeProperties;
     }
+
+    ze_mutable_command_list_exp_properties_t getDeviceMclProperties() const { return getDeviceMclProperties(this->device); }
+    ze_mutable_command_list_exp_properties_t getDeviceMclProperties(DeviceSelection deviceSelection) const { return getDeviceMclProperties(getDevice(deviceSelection)); }
+    ze_mutable_command_list_exp_properties_t getDeviceMclProperties(ze_device_handle_t deviceHandle) const;
+
+    bool isMclExtensionAvailable(uint32_t major, uint32_t minor) const;
+
     uint64_t getTimerResolution(DeviceSelection deviceSelection) const { return getDeviceProperties(deviceSelection).timerResolution; }
     uint64_t getTimerResolution(ze_device_handle_t deviceHandle) const { return getDeviceProperties(deviceHandle).timerResolution; }
 
@@ -116,7 +126,7 @@ struct LevelZero {
         return submissionTime;
     }
 
-    void initializeImportHostPointerExtension(const ExtensionProperties &extensionProperties);
+    void initializeExtension(const ExtensionProperties &extensionProperties);
 
     // Queriers subDevices of the root device and creates them if any. This method is only called when it's necessary, i.e. user
     // specified some subDevices in ContextProperties
